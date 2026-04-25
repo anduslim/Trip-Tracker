@@ -6,6 +6,7 @@ import { HolidayDetailPage } from '@/pages/HolidayDetailPage';
 import { HolidaysListPage } from '@/pages/HolidaysListPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { NotificationsPage } from '@/pages/NotificationsPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 
 export const router = createBrowserRouter([
@@ -22,6 +23,7 @@ export const router = createBrowserRouter([
           { path: 'holidays', element: <HolidaysListPage /> },
           { path: 'holidays/:id', element: <HolidayDetailPage /> },
           { path: 'holidays/:id/search', element: <FlightSearchPage /> },
+          { path: 'notifications', element: <NotificationsPage /> },
         ],
       },
       { path: '*', element: <NotFoundPage /> },
