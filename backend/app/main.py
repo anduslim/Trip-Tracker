@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.jobs.scheduler import shutdown_scheduler, start_scheduler
-from app.routers import auth, flights, health, holidays, notifications, search
+from app.routers import auth, flights, health, holidays, notifications, public, search, share
 
 
 @asynccontextmanager
@@ -35,6 +35,8 @@ def create_app() -> FastAPI:
     app.include_router(flights.router, tags=["flights"])
     app.include_router(search.router)
     app.include_router(notifications.router)
+    app.include_router(share.router)
+    app.include_router(public.router)
 
     return app
 
