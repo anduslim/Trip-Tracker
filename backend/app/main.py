@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, flights, health, holidays
+from app.routers import auth, flights, health, holidays, search
 
 
 @asynccontextmanager
@@ -28,6 +28,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
     app.include_router(holidays.router, prefix="/api/holidays", tags=["holidays"])
     app.include_router(flights.router, tags=["flights"])
+    app.include_router(search.router)
 
     return app
 

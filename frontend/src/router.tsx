@@ -1,6 +1,7 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom';
 import { AppShell } from '@/components/AppShell';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { FlightSearchPage } from '@/pages/FlightSearchPage';
 import { HolidayDetailPage } from '@/pages/HolidayDetailPage';
 import { HolidaysListPage } from '@/pages/HolidaysListPage';
 import { LoginPage } from '@/pages/LoginPage';
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
         children: [
           { path: 'holidays', element: <HolidaysListPage /> },
           { path: 'holidays/:id', element: <HolidayDetailPage /> },
+          { path: 'holidays/:id/search', element: <FlightSearchPage /> },
         ],
       },
       { path: '*', element: <NotFoundPage /> },

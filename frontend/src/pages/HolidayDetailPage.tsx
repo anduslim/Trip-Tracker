@@ -51,16 +51,21 @@ export function HolidayDetailPage() {
             Destinations: {holiday.destinations.map((d) => d.city).join(', ')}
           </p>
         )}
-        <button
-          className="btn danger"
-          onClick={async () => {
-            if (!confirm('Delete this holiday and all its flights?')) return;
-            await removeHoliday.mutateAsync();
-            window.location.href = '/holidays';
-          }}
-        >
-          Delete holiday
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <Link className="btn" to={`/holidays/${holidayId}/search`}>
+            Search flights
+          </Link>
+          <button
+            className="btn danger"
+            onClick={async () => {
+              if (!confirm('Delete this holiday and all its flights?')) return;
+              await removeHoliday.mutateAsync();
+              window.location.href = '/holidays';
+            }}
+          >
+            Delete holiday
+          </button>
+        </div>
       </div>
 
       <FlightEntryForm
