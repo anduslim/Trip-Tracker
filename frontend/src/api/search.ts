@@ -37,9 +37,35 @@ export interface SearchInput {
   max_duration_days?: number | null;
 }
 
+export interface MultiLegInput {
+  legs: { origin: string; destination: string; depart_date: string }[];
+  passengers?: number;
+  cabin?: string | null;
+  currency?: string;
+  max_price_per_leg?: string | null;
+  max_results_per_leg?: number;
+  provider?: string | null;
+}
+
+export interface LegResult {
+  origin: string;
+  destination: string;
+  depart_date: string;
+  offers: SearchOffer[];
+  error: string | null;
+}
+
+export interface MultiLegResponse {
+  provider: string;
+  legs: LegResult[];
+  total_min_price: string | null;
+  currency: string;
+}
+
 export const searchApi = {
   providers: () => api.get<{ providers: string[] }>('/api/search/providers'),
   flights: (body: SearchInput) => api.post<SearchResponse>('/api/search/flights', body),
+  multiLeg: (body: MultiLegInput) => api.post<MultiLegResponse>('/api/search/multi-leg', body),
   saveOffer: (body: { holiday_id: number; offer: SearchOffer }) =>
     api.post<FlightEntry>('/api/search/save-offer', body),
 };

@@ -8,6 +8,7 @@ Personal app to plan a holiday and track flight prices over time.
 - Create/edit/delete holidays with destinations, dates, currency, and per-holiday change thresholds
 - Add flight entries (manual or saved from a search) with source URL and price
 - Live flight search via a pluggable provider (Amadeus default, SerpApi/Google Flights when `SERPAPI_KEY` is set, FakeFlightProvider as a credentials-free fallback)
+- Single-route search (one-way or return) and multi-city search (2–8 separate legs searched in parallel; cheapest combined total shown when every leg has results)
 - Trip-duration filter (min/max days) on top of provider results
 - Background jobs (APScheduler in-process):
   - `refresh_tracked_prices` re-fetches prices via the entry's original provider
@@ -106,7 +107,7 @@ docker-compose.prod.yml
 ## Open follow-ups
 
 - Playwright end-to-end suite (register → create holiday → save offer → chart → share link)
-- Multi-city itinerary search via Amadeus `flight_offers_search.post` and SerpApi `type=3`
+- Single-PNR multi-city itinerary via Amadeus `flight_offers_search.post` (today: each leg is a separate ticket; the multi-city UI is for tour-style trips, not connecting itineraries)
 - Price-analysis context from Amadeus `analytics.itinerary_price_metrics` shown alongside search results
 - Celery + Redis migration when more than one `api` replica is needed
 - CSRF double-submit cookie (today: `SameSite=Lax` + same-origin proxy via nginx)

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -11,6 +12,9 @@ from app.models.price_snapshot import PriceSnapshot
 from app.schemas.flight import FlightEntryResponse
 from app.schemas.search import (
     FlightSearchRequest,
+    LegResult,
+    MultiLegSearchRequest,
+    MultiLegSearchResponse,
     OfferResponse,
     SaveOfferRequest,
     SearchResponse,
@@ -63,6 +67,65 @@ async def search_flights(
     return SearchResponse(
         provider=provider.name,
         offers=[OfferResponse(**{k: v for k, v in o.to_dict().items() if k != "raw"}) for o in offers],
+    )
+
+
+@router.post("/multi-leg", response_model=MultiLegSearchResponse)
+async def search_multi_leg(
+    payload: MultiLegSearchRequest, _user: CurrentUser
+) -> MultiLegSearchResponse:
+    """Search each leg independently in parallel and return offers grouped by leg.
+
+    Useful for tour-style trips (A→B→C→A) where each leg is a separate ticket.
+    For a single multi-city itinerary on one PNR, the user should book directly
+    via Amadeus (not implemented here)."""
+    provider = get_provider(payload.provider)
+
+    async def run_leg(leg) -> LegResult:
+        query = SearchQuery(
+            origin=leg.origin,
+            destination=leg.destination,
+            depart_date=leg.depart_date,
+            passengers=payload.passengers,
+            cabin=payload.cabin,
+            currency=payload.currency,
+            max_price=payload.max_price_per_leg,
+            max_results=payload.max_results_per_leg,
+        )
+        try:
+            offers = await provider.search(query)
+        except ProviderError as e:
+            return LegResult(
+                origin=leg.origin.upper(),
+                destination=leg.destination.upper(),
+                depart_date=leg.depart_date,
+                offers=[],
+                error=str(e),
+            )
+        if payload.max_price_per_leg is not None:
+            offers = [o for o in offers if o.price <= payload.max_price_per_leg]
+        return LegResult(
+            origin=leg.origin.upper(),
+            destination=leg.destination.upper(),
+            depart_date=leg.depart_date,
+            offers=[
+                OfferResponse(**{k: v for k, v in o.to_dict().items() if k != "raw"})
+                for o in offers
+            ],
+        )
+
+    results = await asyncio.gather(*(run_leg(l) for l in payload.legs))
+
+    # Sum the cheapest offer per leg if every leg returned at least one offer.
+    total: Decimal | None = None
+    if all(r.offers for r in results):
+        total = sum((min(r.offers, key=lambda o: o.price).price for r in results), Decimal("0"))
+
+    return MultiLegSearchResponse(
+        provider=provider.name,
+        legs=results,
+        total_min_price=total,
+        currency=payload.currency.upper(),
     )
 
 

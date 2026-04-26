@@ -45,3 +45,34 @@ class SaveOfferRequest(BaseModel):
     holiday_id: int
     offer: OfferResponse
     raw_payload: dict[str, Any] | None = None
+
+
+class LegRequest(BaseModel):
+    origin: str = Field(min_length=3, max_length=3)
+    destination: str = Field(min_length=3, max_length=3)
+    depart_date: date
+
+
+class MultiLegSearchRequest(BaseModel):
+    legs: list[LegRequest] = Field(min_length=2, max_length=8)
+    passengers: int = Field(default=1, ge=1, le=20)
+    cabin: str | None = Field(default=None, max_length=20)
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+    max_price_per_leg: Decimal | None = None
+    max_results_per_leg: int = Field(default=5, ge=1, le=20)
+    provider: str | None = None
+
+
+class LegResult(BaseModel):
+    origin: str
+    destination: str
+    depart_date: date
+    offers: list[OfferResponse]
+    error: str | None = None
+
+
+class MultiLegSearchResponse(BaseModel):
+    provider: str
+    legs: list[LegResult]
+    total_min_price: Decimal | None = None
+    currency: str
