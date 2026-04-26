@@ -49,10 +49,35 @@ async def search_flights(
 
     if payload.max_price is not None:
         offers = [o for o in offers if o.price <= payload.max_price]
+    if payload.min_duration_days is not None or payload.max_duration_days is not None:
+        offers = [
+            o
+            for o in offers
+            if _within_duration(
+                o.depart_date,
+                o.return_date,
+                payload.min_duration_days,
+                payload.max_duration_days,
+            )
+        ]
     return SearchResponse(
         provider=provider.name,
         offers=[OfferResponse(**{k: v for k, v in o.to_dict().items() if k != "raw"}) for o in offers],
     )
+
+
+def _within_duration(
+    depart, return_d, min_days: int | None, max_days: int | None
+) -> bool:
+    if return_d is None:
+        # one-way; only matches if no constraints, otherwise exclude.
+        return min_days is None and max_days is None
+    days = (return_d - depart).days
+    if min_days is not None and days < min_days:
+        return False
+    if max_days is not None and days > max_days:
+        return False
+    return True
 
 
 @router.post(

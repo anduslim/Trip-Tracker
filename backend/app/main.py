@@ -5,7 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.jobs.scheduler import shutdown_scheduler, start_scheduler
-from app.routers import auth, flights, health, holidays, notifications, public, search, share
+from app.middleware.rate_limit import PublicRateLimitMiddleware
+from app.routers import auth, dev, flights, health, holidays, notifications, public, search, share
 
 
 @asynccontextmanager
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(PublicRateLimitMiddleware)
 
     app.include_router(health.router, prefix="/api")
     app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
@@ -37,6 +39,8 @@ def create_app() -> FastAPI:
     app.include_router(notifications.router)
     app.include_router(share.router)
     app.include_router(public.router)
+    if settings.debug:
+        app.include_router(dev.router)
 
     return app
 

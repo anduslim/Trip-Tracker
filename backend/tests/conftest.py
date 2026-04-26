@@ -31,21 +31,30 @@ async def session_factory(test_engine):
 
 
 @pytest_asyncio.fixture
-async def db(session_factory) -> AsyncIterator[AsyncSession]:
+async def _patch_session_local(session_factory):
+    """Make code that reaches for the module-global SessionLocal use the
+    test in-memory engine. Used by both db and client fixtures."""
+    original = db_module.SessionLocal
+    db_module.SessionLocal = session_factory  # type: ignore[assignment]
+    try:
+        yield session_factory
+    finally:
+        db_module.SessionLocal = original
+
+
+@pytest_asyncio.fixture
+async def db(session_factory, _patch_session_local) -> AsyncIterator[AsyncSession]:
     async with session_factory() as session:
         yield session
 
 
 @pytest_asyncio.fixture
-async def client(session_factory) -> AsyncIterator[AsyncClient]:
+async def client(session_factory, _patch_session_local) -> AsyncIterator[AsyncClient]:
     async def override_get_db() -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
-    # Also patch the module-level SessionLocal in case anything reaches for it directly.
-    original_session_local = db_module.SessionLocal
-    db_module.SessionLocal = session_factory  # type: ignore[assignment]
     try:
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://testserver"
@@ -53,7 +62,6 @@ async def client(session_factory) -> AsyncIterator[AsyncClient]:
             yield c
     finally:
         app.dependency_overrides.pop(get_db, None)
-        db_module.SessionLocal = original_session_local
 
 
 @pytest_asyncio.fixture

@@ -48,6 +48,12 @@ export function ComparisonPage() {
             {!insights.biggest_drop_30d && (
               <li className="muted">No 30-day drops yet — keep tracking.</li>
             )}
+            {insights.best_day_of_week.map((b) => (
+              <li key={`${b.origin}-${b.destination}`}>
+                Best day to depart {b.origin} → {b.destination}: <strong>{b.best_day}</strong>{' '}
+                (avg {b.avg_price}, {b.samples} samples)
+              </li>
+            ))}
           </ul>
         )}
       </div>

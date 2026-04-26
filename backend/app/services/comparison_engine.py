@@ -32,6 +32,7 @@ class Insights:
     cheapest_route: dict[str, Any] | None
     biggest_drop_30d: dict[str, Any] | None
     avg_price_per_route: list[dict[str, Any]]
+    best_day_of_week: list[dict[str, Any]]
 
 
 @dataclass
@@ -63,7 +64,12 @@ def build_comparison(
     if not entries:
         return ComparisonResult(
             route_groups=[],
-            insights=Insights(cheapest_route=None, biggest_drop_30d=None, avg_price_per_route=[]),
+            insights=Insights(
+                cheapest_route=None,
+                biggest_drop_30d=None,
+                avg_price_per_route=[],
+                best_day_of_week=[],
+            ),
         )
 
     by_route: dict[tuple[str, str], list[FlightEntry]] = defaultdict(list)
@@ -120,6 +126,8 @@ def build_comparison(
             "currency": e.currency,
         }
 
+    best_dow = _best_day_of_week(by_route)
+
     insights = Insights(
         cheapest_route={
             "origin": cheapest_group.origin,
@@ -138,8 +146,37 @@ def build_comparison(
             }
             for g in sorted(groups, key=lambda g: g.avg_price)
         ],
+        best_day_of_week=best_dow,
     )
     return ComparisonResult(route_groups=groups, insights=insights)
+
+
+_DOW_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def _best_day_of_week(by_route: dict[tuple[str, str], list[FlightEntry]]) -> list[dict[str, Any]]:
+    """For each route, average the latest_price grouped by depart-date weekday.
+    Only emit when we've seen at least 4 distinct weekdays for the route —
+    otherwise the result is misleading."""
+    out: list[dict[str, Any]] = []
+    for (origin, destination), bucket in by_route.items():
+        by_dow: dict[int, list[Decimal]] = {}
+        for e in bucket:
+            by_dow.setdefault(e.depart_date.weekday(), []).append(Decimal(str(e.latest_price)))
+        if len(by_dow) < 4:
+            continue
+        averages = [(dow, _avg(prices)) for dow, prices in by_dow.items()]
+        best_dow, best_avg = min(averages, key=lambda x: x[1])
+        out.append(
+            {
+                "origin": origin,
+                "destination": destination,
+                "best_day": _DOW_NAMES[best_dow],
+                "avg_price": str(best_avg),
+                "samples": sum(len(v) for v in by_dow.values()),
+            }
+        )
+    return out
 
 
 def _ensure_utc(dt: datetime) -> datetime:

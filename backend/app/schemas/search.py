@@ -16,6 +16,8 @@ class FlightSearchRequest(BaseModel):
     max_price: Decimal | None = None
     max_results: int = Field(default=10, ge=1, le=50)
     provider: str | None = None  # 'amadeus' | 'serpapi' | 'fake' | None=default
+    min_duration_days: int | None = Field(default=None, ge=1, le=365)
+    max_duration_days: int | None = Field(default=None, ge=1, le=365)
 
 
 class OfferResponse(BaseModel):

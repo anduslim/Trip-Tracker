@@ -33,6 +33,8 @@ export interface SearchInput {
   max_price?: string | null;
   max_results?: number;
   provider?: string | null;
+  min_duration_days?: number | null;
+  max_duration_days?: number | null;
 }
 
 export const searchApi = {

@@ -177,6 +177,46 @@ async def refresh_due_entries(
     return refreshed
 
 
+async def prune_old_snapshots(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    older_than_days: int = 90,
+) -> int:
+    """Downsample snapshots older than `older_than_days` to one per day per
+    flight entry (keep the most recent). Returns number of rows deleted."""
+    from sqlalchemy import delete, func
+
+    cutoff = datetime.now(UTC) - timedelta(days=older_than_days)
+    deleted = 0
+    async with session_factory() as db:
+        # Identify (entry_id, day) groups; keep the row with max(captured_at) per group, delete the rest.
+        date_expr = func.date(PriceSnapshot.captured_at)
+        rows = (
+            await db.execute(
+                select(
+                    PriceSnapshot.id,
+                    PriceSnapshot.flight_entry_id,
+                    date_expr.label("day"),
+                    PriceSnapshot.captured_at,
+                ).where(PriceSnapshot.captured_at < cutoff)
+            )
+        ).all()
+        keep_ids: set[int] = set()
+        per_group: dict[tuple[int, str], tuple[int, datetime]] = {}
+        for snap_id, entry_id, day, captured_at in rows:
+            key = (entry_id, str(day))
+            current = per_group.get(key)
+            if current is None or captured_at > current[1]:
+                per_group[key] = (snap_id, captured_at)
+        keep_ids = {v[0] for v in per_group.values()}
+        delete_ids = [snap_id for (snap_id, _, _, _) in rows if snap_id not in keep_ids]
+        if delete_ids:
+            await db.execute(delete(PriceSnapshot).where(PriceSnapshot.id.in_(delete_ids)))
+            await db.commit()
+            deleted = len(delete_ids)
+    return deleted
+
+
 async def dispatch_pending_emails(
     session_factory: async_sessionmaker[AsyncSession],
     *,

@@ -46,6 +46,8 @@ export function FlightSearchPage() {
         max_results: Number(values.max_results ?? 10),
         max_price: values.max_price?.toString() || null,
         return_date: values.return_date || null,
+        min_duration_days: values.min_duration_days ? Number(values.min_duration_days) : null,
+        max_duration_days: values.max_duration_days ? Number(values.max_duration_days) : null,
       });
       setProvider(resp.provider);
       setResults(resp.offers);
@@ -125,6 +127,17 @@ export function FlightSearchPage() {
               ))}
             </select>
           </div>
+        </div>
+        <div className="form-row">
+          <div>
+            <label>Min trip duration (days)</label>
+            <input type="number" min={1} max={365} {...register('min_duration_days')} />
+          </div>
+          <div>
+            <label>Max trip duration (days)</label>
+            <input type="number" min={1} max={365} {...register('max_duration_days')} />
+          </div>
+          <div />
         </div>
         <div style={{ marginTop: '0.75rem' }}>
           <button className="btn" type="submit" disabled={isSubmitting}>

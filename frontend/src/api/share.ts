@@ -65,6 +65,13 @@ export interface ComparisonResponse {
       avg_price: string;
       entry_count: number;
     }[];
+    best_day_of_week: {
+      origin: string;
+      destination: string;
+      best_day: string;
+      avg_price: string;
+      samples: number;
+    }[];
   };
 }
 
