@@ -7,9 +7,11 @@ import {
   searchApi,
   type LegResult,
   type MultiLegInput,
+  type PriceAnalysisDto,
   type SearchInput,
   type SearchOffer,
 } from '@/api/search';
+import { PriceAnalysisPanel, PriceRatingBadge } from '@/components/PriceRatingBadge';
 
 type Mode = 'one-way-or-return' | 'multi-city';
 
@@ -20,6 +22,7 @@ export function FlightSearchPage() {
   const [mode, setMode] = useState<Mode>('one-way-or-return');
   const [singleResults, setSingleResults] = useState<SearchOffer[] | null>(null);
   const [singleProvider, setSingleProvider] = useState<string | null>(null);
+  const [singleAnalysis, setSingleAnalysis] = useState<PriceAnalysisDto | null>(null);
   const [multiResults, setMultiResults] = useState<{
     provider: string;
     legs: LegResult[];
@@ -73,14 +76,16 @@ export function FlightSearchPage() {
         <SingleRouteForm
           currencyDefault={currencyDefault}
           providers={providers?.providers ?? []}
-          onResults={(p, offers) => {
+          onResults={(p, offers, analysis) => {
             setSingleProvider(p);
             setSingleResults(offers);
+            setSingleAnalysis(analysis);
             setSearchError(null);
           }}
           onError={(msg) => {
             setSearchError(msg);
             setSingleResults([]);
+            setSingleAnalysis(null);
           }}
         />
       ) : (
@@ -101,12 +106,15 @@ export function FlightSearchPage() {
       {searchError && <div className="error">{searchError}</div>}
 
       {mode === 'one-way-or-return' && singleResults !== null && (
-        <ResultsList
-          provider={singleProvider}
-          offers={singleResults}
-          onSave={(o) => saveMut.mutate(o)}
-          saving={saveMut.isPending}
-        />
+        <>
+          {singleAnalysis && <PriceAnalysisPanel analysis={singleAnalysis} />}
+          <ResultsList
+            provider={singleProvider}
+            offers={singleResults}
+            onSave={(o) => saveMut.mutate(o)}
+            saving={saveMut.isPending}
+          />
+        </>
       )}
 
       {mode === 'multi-city' && multiResults && (
@@ -173,7 +181,7 @@ function SingleRouteForm({
 }: {
   currencyDefault: string;
   providers: string[];
-  onResults: (provider: string, offers: SearchOffer[]) => void;
+  onResults: (provider: string, offers: SearchOffer[], analysis: PriceAnalysisDto | null) => void;
   onError: (msg: string) => void;
 }) {
   const { register, handleSubmit, formState: { isSubmitting } } = useForm<SearchInput>({
@@ -198,7 +206,7 @@ function SingleRouteForm({
         min_duration_days: values.min_duration_days ? Number(values.min_duration_days) : null,
         max_duration_days: values.max_duration_days ? Number(values.max_duration_days) : null,
       });
-      onResults(resp.provider, resp.offers);
+      onResults(resp.provider, resp.offers, resp.price_analysis);
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Search failed');
     }
@@ -442,7 +450,8 @@ function ResultsList({
         <div className="card" key={`${o.provider}-${o.provider_offer_id}-${i}`}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <div>
-              <strong>{o.origin_iata} → {o.destination_iata}</strong>{' '}
+              <strong>{o.origin_iata} → {o.destination_iata}</strong>
+              <PriceRatingBadge rating={o.price_rating} />{' '}
               <span className="muted">
                 {o.depart_date}{o.return_date ? ` ↔ ${o.return_date}` : ''}
                 {o.airline_name ? ` · ${o.airline_name}` : o.airline_code ? ` · ${o.airline_code}` : ''}

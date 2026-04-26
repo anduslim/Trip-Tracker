@@ -16,6 +16,7 @@ from app.schemas.search import (
     MultiLegSearchRequest,
     MultiLegSearchResponse,
     OfferResponse,
+    PriceAnalysisResponse,
     SaveOfferRequest,
     SearchResponse,
 )
@@ -46,10 +47,29 @@ async def search_flights(
         max_price=payload.max_price,
         max_results=payload.max_results,
     )
-    try:
-        offers = await provider.search(query)
-    except ProviderError as e:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(e)) from e
+    one_way = payload.return_date is None
+
+    async def _safe_search():
+        try:
+            return await provider.search(query)
+        except ProviderError as e:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(e)) from e
+
+    async def _safe_analysis():
+        # Best-effort: price analysis is supplementary, must never fail the
+        # search even if the provider 5xx's or the route is unsupported.
+        try:
+            return await provider.price_analysis(
+                payload.origin,
+                payload.destination,
+                payload.depart_date,
+                currency=payload.currency,
+                one_way=one_way,
+            )
+        except Exception:
+            return None
+
+    offers, analysis = await asyncio.gather(_safe_search(), _safe_analysis())
 
     if payload.max_price is not None:
         offers = [o for o in offers if o.price <= payload.max_price]
@@ -64,9 +84,17 @@ async def search_flights(
                 payload.max_duration_days,
             )
         ]
+    offer_responses: list[OfferResponse] = []
+    for o in offers:
+        d = {k: v for k, v in o.to_dict().items() if k != "raw"}
+        if analysis is not None:
+            d["price_rating"] = analysis.rate(o.price)
+        offer_responses.append(OfferResponse(**d))
+
     return SearchResponse(
         provider=provider.name,
-        offers=[OfferResponse(**{k: v for k, v in o.to_dict().items() if k != "raw"}) for o in offers],
+        offers=offer_responses,
+        price_analysis=PriceAnalysisResponse(**analysis.to_dict()) if analysis else None,
     )
 
 

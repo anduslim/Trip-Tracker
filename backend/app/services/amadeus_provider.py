@@ -16,6 +16,7 @@ from amadeus import Client, ResponseError
 from app.services.flight_provider import (
     FlightProvider,
     NormalizedOffer,
+    PriceAnalysis,
     ProviderError,
     SearchQuery,
 )
@@ -64,6 +65,46 @@ class AmadeusProvider(FlightProvider):
         if not offers:
             return None
         return _to_offer(offers[0])
+
+    async def price_analysis(
+        self,
+        origin: str,
+        destination: str,
+        depart_date: date,
+        *,
+        currency: str = "USD",
+        one_way: bool = False,
+    ) -> PriceAnalysis | None:
+        try:
+            resp = await asyncio.to_thread(
+                self._client.analytics.itinerary_price_metrics.get,
+                originIataCode=origin.upper(),
+                destinationIataCode=destination.upper(),
+                departureDate=depart_date.isoformat(),
+                currencyCode=currency.upper(),
+                oneWay="true" if one_way else "false",
+            )
+        except ResponseError:
+            return None
+        items = resp.data or []
+        if not items:
+            return None
+        metrics = items[0].get("priceMetrics") or []
+        buckets = {m.get("quartileRanking"): Decimal(str(m.get("amount", "0"))) for m in metrics}
+        required = ("MINIMUM", "FIRST", "MEDIAN", "THIRD", "MAXIMUM")
+        if not all(k in buckets for k in required):
+            return None
+        return PriceAnalysis(
+            origin_iata=origin.upper(),
+            destination_iata=destination.upper(),
+            depart_date=depart_date,
+            currency=currency.upper(),
+            minimum=buckets["MINIMUM"],
+            first=buckets["FIRST"],
+            median=buckets["MEDIAN"],
+            third=buckets["THIRD"],
+            maximum=buckets["MAXIMUM"],
+        )
 
 
 def _to_offer(raw: dict[str, Any]) -> NormalizedOffer:

@@ -34,11 +34,25 @@ class OfferResponse(BaseModel):
     price: Decimal
     currency: str
     deep_link: str | None = None
+    price_rating: str | None = None  # "cheap" | "good" | "typical" | "expensive"
+
+
+class PriceAnalysisResponse(BaseModel):
+    origin_iata: str
+    destination_iata: str
+    depart_date: date
+    currency: str
+    minimum: Decimal
+    first: Decimal
+    median: Decimal
+    third: Decimal
+    maximum: Decimal
 
 
 class SearchResponse(BaseModel):
     provider: str
     offers: list[OfferResponse]
+    price_analysis: PriceAnalysisResponse | None = None
 
 
 class SaveOfferRequest(BaseModel):

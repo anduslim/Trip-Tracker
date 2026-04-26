@@ -15,11 +15,25 @@ export interface SearchOffer {
   price: string;
   currency: string;
   deep_link: string | null;
+  price_rating: 'cheap' | 'good' | 'typical' | 'expensive' | null;
+}
+
+export interface PriceAnalysisDto {
+  origin_iata: string;
+  destination_iata: string;
+  depart_date: string;
+  currency: string;
+  minimum: string;
+  first: string;
+  median: string;
+  third: string;
+  maximum: string;
 }
 
 export interface SearchResponse {
   provider: string;
   offers: SearchOffer[];
+  price_analysis: PriceAnalysisDto | null;
 }
 
 export interface SearchInput {

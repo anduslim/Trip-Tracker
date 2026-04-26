@@ -50,12 +50,68 @@ class NormalizedOffer:
         return d
 
 
+@dataclass
+class PriceAnalysis:
+    """Quartile-based price context for a route + date.
+
+    Values are inclusive: minimum/first/median/third/maximum bucket boundaries
+    matching Amadeus `analytics.itinerary_price_metrics`. A price <= first is
+    in the cheapest quartile; > third is in the priciest quartile.
+    """
+    origin_iata: str
+    destination_iata: str
+    depart_date: date
+    currency: str
+    minimum: Decimal
+    first: Decimal
+    median: Decimal
+    third: Decimal
+    maximum: Decimal
+
+    def rate(self, price: Decimal) -> str:
+        """Classify a price against this analysis. Returns 'cheap', 'good',
+        'typical', or 'expensive'."""
+        if price <= self.first:
+            return "cheap"
+        if price <= self.median:
+            return "good"
+        if price <= self.third:
+            return "typical"
+        return "expensive"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "origin_iata": self.origin_iata,
+            "destination_iata": self.destination_iata,
+            "depart_date": self.depart_date.isoformat(),
+            "currency": self.currency,
+            "minimum": str(self.minimum),
+            "first": str(self.first),
+            "median": str(self.median),
+            "third": str(self.third),
+            "maximum": str(self.maximum),
+        }
+
+
 class FlightProvider(Protocol):
     name: str
 
     async def search(self, query: SearchQuery) -> list[NormalizedOffer]: ...
 
     async def reprice(self, stored_payload: dict[str, Any]) -> NormalizedOffer | None: ...
+
+    async def price_analysis(
+        self,
+        origin: str,
+        destination: str,
+        depart_date: date,
+        *,
+        currency: str = "USD",
+        one_way: bool = False,
+    ) -> PriceAnalysis | None:
+        """Return historical-price quartiles for the route + date, or None
+        if the provider doesn't support it."""
+        ...
 
 
 class ProviderError(RuntimeError):

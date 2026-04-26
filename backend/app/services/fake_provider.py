@@ -8,6 +8,7 @@ from typing import Any
 from app.services.flight_provider import (
     FlightProvider,
     NormalizedOffer,
+    PriceAnalysis,
     SearchQuery,
 )
 
@@ -20,11 +21,14 @@ class FakeFlightProvider(FlightProvider):
         *,
         offers: list[NormalizedOffer] | None = None,
         reprice_value: Decimal | None = None,
+        analysis: PriceAnalysis | None = None,
     ):
         self._offers = offers
         self._reprice_value = reprice_value
+        self._analysis = analysis
         self.search_calls: list[SearchQuery] = []
         self.reprice_calls: list[dict[str, Any]] = []
+        self.analysis_calls: list[tuple[str, str, str]] = []
 
     async def search(self, query: SearchQuery) -> list[NormalizedOffer]:
         self.search_calls.append(query)
@@ -51,6 +55,31 @@ class FakeFlightProvider(FlightProvider):
             )
             for i in range(3)
         ]
+
+    async def price_analysis(
+        self,
+        origin: str,
+        destination: str,
+        depart_date,
+        *,
+        currency: str = "USD",
+        one_way: bool = False,
+    ) -> PriceAnalysis | None:
+        self.analysis_calls.append((origin, destination, depart_date.isoformat()))
+        if self._analysis is not None:
+            return self._analysis
+        # Default fake distribution centred at 600 with 200-wide IQR.
+        return PriceAnalysis(
+            origin_iata=origin.upper(),
+            destination_iata=destination.upper(),
+            depart_date=depart_date,
+            currency=currency.upper(),
+            minimum=Decimal("400"),
+            first=Decimal("525"),
+            median=Decimal("600"),
+            third=Decimal("700"),
+            maximum=Decimal("900"),
+        )
 
     async def reprice(self, stored_payload: dict[str, Any]) -> NormalizedOffer | None:
         self.reprice_calls.append(stored_payload)

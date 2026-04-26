@@ -16,6 +16,7 @@ import httpx
 from app.services.flight_provider import (
     FlightProvider,
     NormalizedOffer,
+    PriceAnalysis,
     ProviderError,
     SearchQuery,
 )
@@ -61,6 +62,17 @@ class SerpApiProvider(FlightProvider):
                 if len(offers) >= query.max_results:
                     return offers
         return offers
+
+    async def price_analysis(
+        self,
+        origin: str,
+        destination: str,
+        depart_date,
+        *,
+        currency: str = "USD",
+        one_way: bool = False,
+    ) -> PriceAnalysis | None:
+        return None  # Google Flights / SerpApi has no quartile-style metric.
 
     async def reprice(self, stored_payload: dict[str, Any]) -> NormalizedOffer | None:
         """SerpApi has no offer-pricing endpoint. We re-run the search and
