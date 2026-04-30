@@ -15,6 +15,8 @@ from amadeus import Client, ResponseError
 
 from app.services.flight_provider import (
     FlightProvider,
+    MultiCityLeg,
+    MultiCityOffer,
     NormalizedOffer,
     PriceAnalysis,
     ProviderError,
@@ -65,6 +67,68 @@ class AmadeusProvider(FlightProvider):
         if not offers:
             return None
         return _to_offer(offers[0])
+
+    async def search_multi_city(
+        self,
+        legs: list[MultiCityLeg],
+        *,
+        passengers: int = 1,
+        cabin: str | None = None,
+        currency: str = "USD",
+        max_results: int = 10,
+    ) -> list[MultiCityOffer]:
+        body: dict[str, Any] = {
+            "currencyCode": currency.upper(),
+            "originDestinations": [
+                {
+                    "id": str(i + 1),
+                    "originLocationCode": leg.origin.upper(),
+                    "destinationLocationCode": leg.destination.upper(),
+                    "departureDateTimeRange": {"date": leg.depart_date.isoformat()},
+                }
+                for i, leg in enumerate(legs)
+            ],
+            "travelers": [
+                {"id": str(i + 1), "travelerType": "ADULT"} for i in range(passengers)
+            ],
+            "sources": ["GDS"],
+            "searchCriteria": {"maxFlightOffers": max_results},
+        }
+        if cabin:
+            body["searchCriteria"]["flightFilters"] = {
+                "cabinRestrictions": [
+                    {
+                        "cabin": cabin.upper(),
+                        "coverage": "MOST_SEGMENTS",
+                        "originDestinationIds": [str(i + 1) for i in range(len(legs))],
+                    }
+                ]
+            }
+        try:
+            resp = await asyncio.to_thread(
+                self._client.shopping.flight_offers_search.post, body
+            )
+        except ResponseError as e:
+            raise ProviderError(f"Amadeus error: {e}") from e
+
+        out: list[MultiCityOffer] = []
+        for raw in resp.data or []:
+            itineraries = raw.get("itineraries") or []
+            if len(itineraries) != len(legs):
+                continue
+            leg_offers = [_to_offer({**raw, "itineraries": [it]}) for it in itineraries]
+            price = raw.get("price", {})
+            out.append(
+                MultiCityOffer(
+                    provider="amadeus",
+                    provider_offer_id=str(raw.get("id") or ""),
+                    legs=leg_offers,
+                    total_price=Decimal(str(price.get("total", "0"))),
+                    currency=str(price.get("currency", currency.upper())),
+                    raw=raw,
+                )
+            )
+        return out
 
     async def price_analysis(
         self,

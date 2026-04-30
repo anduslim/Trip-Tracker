@@ -90,3 +90,32 @@ class MultiLegSearchResponse(BaseModel):
     legs: list[LegResult]
     total_min_price: Decimal | None = None
     currency: str
+
+
+class SinglePnrLeg(BaseModel):
+    origin_iata: str
+    destination_iata: str
+    depart_date: date
+    return_date: date | None
+    airline_code: str | None
+    airline_name: str | None
+    cabin: str | None
+    passengers: int
+    price: Decimal
+    currency: str
+    deep_link: str | None = None
+    provider: str
+    provider_offer_id: str
+
+
+class SinglePnrOfferResponse(BaseModel):
+    provider: str
+    provider_offer_id: str
+    legs: list[SinglePnrLeg]
+    total_price: Decimal
+    currency: str
+
+
+class SinglePnrSearchResponse(BaseModel):
+    provider: str
+    offers: list[SinglePnrOfferResponse]

@@ -76,10 +76,41 @@ export interface MultiLegResponse {
   currency: string;
 }
 
+export interface SinglePnrLeg {
+  origin_iata: string;
+  destination_iata: string;
+  depart_date: string;
+  return_date: string | null;
+  airline_code: string | null;
+  airline_name: string | null;
+  cabin: string | null;
+  passengers: number;
+  price: string;
+  currency: string;
+  deep_link: string | null;
+  provider: string;
+  provider_offer_id: string;
+}
+
+export interface SinglePnrOffer {
+  provider: string;
+  provider_offer_id: string;
+  legs: SinglePnrLeg[];
+  total_price: string;
+  currency: string;
+}
+
+export interface SinglePnrResponse {
+  provider: string;
+  offers: SinglePnrOffer[];
+}
+
 export const searchApi = {
   providers: () => api.get<{ providers: string[] }>('/api/search/providers'),
   flights: (body: SearchInput) => api.post<SearchResponse>('/api/search/flights', body),
   multiLeg: (body: MultiLegInput) => api.post<MultiLegResponse>('/api/search/multi-leg', body),
+  multiCitySinglePnr: (body: MultiLegInput) =>
+    api.post<SinglePnrResponse>('/api/search/multi-city-single-pnr', body),
   saveOffer: (body: { holiday_id: number; offer: SearchOffer }) =>
     api.post<FlightEntry>('/api/search/save-offer', body),
 };

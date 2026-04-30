@@ -93,6 +93,36 @@ class PriceAnalysis:
         }
 
 
+@dataclass
+class MultiCityLeg:
+    origin: str
+    destination: str
+    depart_date: date
+
+
+@dataclass
+class MultiCityOffer:
+    """A single PNR / ticket covering all legs in order."""
+    provider: str
+    provider_offer_id: str
+    legs: list[NormalizedOffer]
+    total_price: Decimal
+    currency: str
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "provider": self.provider,
+            "provider_offer_id": self.provider_offer_id,
+            "legs": [
+                {k: v for k, v in leg.to_dict().items() if k != "raw"}
+                for leg in self.legs
+            ],
+            "total_price": str(self.total_price),
+            "currency": self.currency,
+        }
+
+
 class FlightProvider(Protocol):
     name: str
 
@@ -112,6 +142,19 @@ class FlightProvider(Protocol):
         """Return historical-price quartiles for the route + date, or None
         if the provider doesn't support it."""
         ...
+
+    async def search_multi_city(
+        self,
+        legs: list[MultiCityLeg],
+        *,
+        passengers: int = 1,
+        cabin: str | None = None,
+        currency: str = "USD",
+        max_results: int = 10,
+    ) -> list[MultiCityOffer]:
+        """Find single-PNR itineraries covering all legs in order. Empty
+        list when the provider can't service multi-city natively."""
+        return []
 
 
 class ProviderError(RuntimeError):

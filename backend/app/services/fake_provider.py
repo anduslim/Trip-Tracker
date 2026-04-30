@@ -7,6 +7,8 @@ from typing import Any
 
 from app.services.flight_provider import (
     FlightProvider,
+    MultiCityLeg,
+    MultiCityOffer,
     NormalizedOffer,
     PriceAnalysis,
     SearchQuery,
@@ -55,6 +57,49 @@ class FakeFlightProvider(FlightProvider):
             )
             for i in range(3)
         ]
+
+    async def search_multi_city(
+        self,
+        legs: list[MultiCityLeg],
+        *,
+        passengers: int = 1,
+        cabin: str | None = None,
+        currency: str = "USD",
+        max_results: int = 10,
+    ) -> list[MultiCityOffer]:
+        # Generate two deterministic single-PNR options (cheap + full-fare).
+        out: list[MultiCityOffer] = []
+        for variant, base in enumerate([Decimal("450"), Decimal("550")]):
+            leg_offers = [
+                NormalizedOffer(
+                    provider="fake",
+                    provider_offer_id=f"fake-mc-{variant}-{i}",
+                    origin_iata=leg.origin.upper(),
+                    destination_iata=leg.destination.upper(),
+                    depart_date=leg.depart_date,
+                    return_date=None,
+                    airline_code="UA",
+                    airline_name="United",
+                    cabin=cabin or "ECONOMY",
+                    passengers=passengers,
+                    price=base,
+                    currency=currency.upper(),
+                )
+                for i, leg in enumerate(legs)
+            ]
+            total = base * len(legs)
+            out.append(
+                MultiCityOffer(
+                    provider="fake",
+                    provider_offer_id=f"fake-mc-{variant}",
+                    legs=leg_offers,
+                    total_price=total,
+                    currency=currency.upper(),
+                )
+            )
+            if len(out) >= max_results:
+                break
+        return out
 
     async def price_analysis(
         self,

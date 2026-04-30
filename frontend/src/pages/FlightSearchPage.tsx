@@ -10,8 +10,11 @@ import {
   type PriceAnalysisDto,
   type SearchInput,
   type SearchOffer,
+  type SinglePnrOffer,
 } from '@/api/search';
 import { PriceAnalysisPanel, PriceRatingBadge } from '@/components/PriceRatingBadge';
+
+type MultiSubMode = 'separate' | 'single-pnr';
 
 type Mode = 'one-way-or-return' | 'multi-city';
 
@@ -23,11 +26,16 @@ export function FlightSearchPage() {
   const [singleResults, setSingleResults] = useState<SearchOffer[] | null>(null);
   const [singleProvider, setSingleProvider] = useState<string | null>(null);
   const [singleAnalysis, setSingleAnalysis] = useState<PriceAnalysisDto | null>(null);
+  const [multiSubMode, setMultiSubMode] = useState<MultiSubMode>('separate');
   const [multiResults, setMultiResults] = useState<{
     provider: string;
     legs: LegResult[];
     total_min_price: string | null;
     currency: string;
+  } | null>(null);
+  const [singlePnrResults, setSinglePnrResults] = useState<{
+    provider: string;
+    offers: SinglePnrOffer[];
   } | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
 
@@ -89,18 +97,47 @@ export function FlightSearchPage() {
           }}
         />
       ) : (
-        <MultiCityForm
-          currencyDefault={currencyDefault}
-          providers={providers?.providers ?? []}
-          onResults={(r) => {
-            setMultiResults(r);
-            setSearchError(null);
-          }}
-          onError={(msg) => {
-            setSearchError(msg);
-            setMultiResults(null);
-          }}
-        />
+        <>
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <button
+              className={`btn ${multiSubMode === 'separate' ? '' : 'secondary'}`}
+              onClick={() => setMultiSubMode('separate')}
+            >
+              Separate tickets per leg
+            </button>
+            <button
+              className={`btn ${multiSubMode === 'single-pnr' ? '' : 'secondary'}`}
+              onClick={() => setMultiSubMode('single-pnr')}
+            >
+              Single ticket (one PNR)
+            </button>
+          </div>
+          <p className="muted" style={{ marginTop: '-0.25rem' }}>
+            {multiSubMode === 'separate'
+              ? 'Each leg searched independently — best for tour-style trips where you book each leg separately.'
+              : 'One ticket covering all legs in order — best for connecting itineraries (Amadeus only).'}
+          </p>
+          <MultiCityForm
+            mode={multiSubMode}
+            currencyDefault={currencyDefault}
+            providers={providers?.providers ?? []}
+            onSeparateResults={(r) => {
+              setMultiResults(r);
+              setSinglePnrResults(null);
+              setSearchError(null);
+            }}
+            onSinglePnrResults={(r) => {
+              setSinglePnrResults(r);
+              setMultiResults(null);
+              setSearchError(null);
+            }}
+            onError={(msg) => {
+              setSearchError(msg);
+              setMultiResults(null);
+              setSinglePnrResults(null);
+            }}
+          />
+        </>
       )}
 
       {searchError && <div className="error">{searchError}</div>}
@@ -115,6 +152,78 @@ export function FlightSearchPage() {
             saving={saveMut.isPending}
           />
         </>
+      )}
+
+      {mode === 'multi-city' && singlePnrResults && (
+        <div>
+          <p className="muted">
+            Provider <strong>{singlePnrResults.provider}</strong> · {singlePnrResults.offers.length} single-ticket option(s)
+          </p>
+          {singlePnrResults.offers.length === 0 && (
+            <p>No single-PNR itineraries found. Try the separate-tickets mode.</p>
+          )}
+          {singlePnrResults.offers.map((offer, oi) => (
+            <div className="card" key={`${offer.provider_offer_id}-${oi}`}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <strong>Option {oi + 1}</strong>
+                <div style={{ fontWeight: 600 }}>
+                  {offer.currency} {offer.total_price}
+                </div>
+              </div>
+              {offer.legs.map((leg, li) => (
+                <div
+                  key={li}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'baseline',
+                    padding: '0.4rem 0',
+                    borderTop: li === 0 ? undefined : '1px solid #eee',
+                  }}
+                >
+                  <div>
+                    <strong>{leg.origin_iata} → {leg.destination_iata}</strong>{' '}
+                    <span className="muted">
+                      {leg.depart_date}{leg.airline_name ? ` · ${leg.airline_name}` : ''}
+                      {leg.cabin ? ` · ${leg.cabin}` : ''}
+                    </span>
+                  </div>
+                  <div className="muted">{leg.currency} {leg.price}</div>
+                </div>
+              ))}
+              <div style={{ marginTop: '0.5rem' }}>
+                <button
+                  className="btn"
+                  disabled={saveMut.isPending}
+                  onClick={() => {
+                    // Save each leg as a separate flight_entry; the user
+                    // can later see them as a group via the comparison view.
+                    offer.legs.forEach((leg) => {
+                      saveMut.mutate({
+                        provider: leg.provider,
+                        provider_offer_id: leg.provider_offer_id,
+                        origin_iata: leg.origin_iata,
+                        destination_iata: leg.destination_iata,
+                        depart_date: leg.depart_date,
+                        return_date: leg.return_date,
+                        airline_code: leg.airline_code,
+                        airline_name: leg.airline_name,
+                        cabin: leg.cabin,
+                        passengers: leg.passengers,
+                        price: leg.price,
+                        currency: leg.currency,
+                        deep_link: leg.deep_link,
+                        price_rating: null,
+                      });
+                    });
+                  }}
+                >
+                  Save all legs to holiday
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {mode === 'multi-city' && multiResults && (
@@ -296,19 +405,23 @@ interface MultiFormValues {
 }
 
 function MultiCityForm({
+  mode,
   currencyDefault,
   providers,
-  onResults,
+  onSeparateResults,
+  onSinglePnrResults,
   onError,
 }: {
+  mode: MultiSubMode;
   currencyDefault: string;
   providers: string[];
-  onResults: (r: {
+  onSeparateResults: (r: {
     provider: string;
     legs: LegResult[];
     total_min_price: string | null;
     currency: string;
   }) => void;
+  onSinglePnrResults: (r: { provider: string; offers: SinglePnrOffer[] }) => void;
   onError: (msg: string) => void;
 }) {
   const { register, control, handleSubmit, formState: { isSubmitting } } = useForm<MultiFormValues>({
@@ -339,8 +452,13 @@ function MultiCityForm({
         provider: values.provider || null,
         max_results_per_leg: 5,
       };
-      const resp = await searchApi.multiLeg(body);
-      onResults(resp);
+      if (mode === 'single-pnr') {
+        const resp = await searchApi.multiCitySinglePnr(body);
+        onSinglePnrResults(resp);
+      } else {
+        const resp = await searchApi.multiLeg(body);
+        onSeparateResults(resp);
+      }
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Search failed');
     }

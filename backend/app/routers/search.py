@@ -19,8 +19,11 @@ from app.schemas.search import (
     PriceAnalysisResponse,
     SaveOfferRequest,
     SearchResponse,
+    SinglePnrLeg,
+    SinglePnrOfferResponse,
+    SinglePnrSearchResponse,
 )
-from app.services.flight_provider import ProviderError, SearchQuery
+from app.services.flight_provider import MultiCityLeg, ProviderError, SearchQuery
 from app.services.provider_registry import available_providers, get_provider
 
 router = APIRouter(prefix="/api/search", tags=["search"])
@@ -154,6 +157,50 @@ async def search_multi_leg(
         legs=results,
         total_min_price=total,
         currency=payload.currency.upper(),
+    )
+
+
+@router.post("/multi-city-single-pnr", response_model=SinglePnrSearchResponse)
+async def search_multi_city_single_pnr(
+    payload: MultiLegSearchRequest, _user: CurrentUser
+) -> SinglePnrSearchResponse:
+    """Find single-ticket itineraries that cover all legs in order.
+
+    Best for connecting itineraries that share fare rules (Amadeus). For
+    tour-style trips with separate tickets per leg, use /multi-leg instead.
+    Returns an empty list when the chosen provider doesn't support it."""
+    provider = get_provider(payload.provider)
+    legs = [
+        MultiCityLeg(origin=leg.origin, destination=leg.destination, depart_date=leg.depart_date)
+        for leg in payload.legs
+    ]
+    try:
+        offers = await provider.search_multi_city(
+            legs,
+            passengers=payload.passengers,
+            cabin=payload.cabin,
+            currency=payload.currency,
+            max_results=payload.max_results_per_leg,
+        )
+    except ProviderError as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(e)) from e
+
+    if payload.max_price_per_leg is not None:
+        cap = payload.max_price_per_leg * len(payload.legs)
+        offers = [o for o in offers if o.total_price <= cap]
+
+    return SinglePnrSearchResponse(
+        provider=provider.name,
+        offers=[
+            SinglePnrOfferResponse(
+                provider=o.provider,
+                provider_offer_id=o.provider_offer_id,
+                total_price=o.total_price,
+                currency=o.currency,
+                legs=[SinglePnrLeg(**{k: v for k, v in leg.to_dict().items() if k != "raw"}) for leg in o.legs],
+            )
+            for o in offers
+        ],
     )
 
 
