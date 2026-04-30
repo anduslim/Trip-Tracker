@@ -4,12 +4,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, flights, health, holidays
+from app.jobs.scheduler import shutdown_scheduler, start_scheduler
+from app.middleware.csrf import CsrfMiddleware
+from app.middleware.rate_limit import PublicRateLimitMiddleware
+from app.routers import auth, dev, flights, health, holidays, notifications, public, search, share
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    yield
+    start_scheduler()
+    try:
+        yield
+    finally:
+        shutdown_scheduler()
 
 
 def create_app() -> FastAPI:
@@ -23,11 +30,19 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(PublicRateLimitMiddleware)
+    app.add_middleware(CsrfMiddleware)
 
     app.include_router(health.router, prefix="/api")
     app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
     app.include_router(holidays.router, prefix="/api/holidays", tags=["holidays"])
     app.include_router(flights.router, tags=["flights"])
+    app.include_router(search.router)
+    app.include_router(notifications.router)
+    app.include_router(share.router)
+    app.include_router(public.router)
+    if settings.debug:
+        app.include_router(dev.router)
 
     return app
 

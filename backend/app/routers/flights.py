@@ -14,6 +14,7 @@ from app.schemas.flight import (
     PriceSnapshotResponse,
     RefreshPriceRequest,
 )
+from app.services.comparison_engine import build_comparison
 
 router = APIRouter(prefix="/api/holidays/{holiday_id}/flights")
 
@@ -89,6 +90,32 @@ async def create_entry(
     await db.commit()
     await db.refresh(entry)
     return entry
+
+
+@router.get("/comparison")
+async def comparison(
+    holiday_id: int, db: DbDep, current_user: CurrentUser
+) -> dict:
+    await _owned_holiday(db, current_user.id, holiday_id)
+    entries = list(
+        (
+            await db.execute(
+                select(FlightEntry).where(FlightEntry.holiday_id == holiday_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    snapshots_by_entry: dict[int, list[PriceSnapshot]] = {}
+    if entries:
+        snaps_q = await db.execute(
+            select(PriceSnapshot).where(
+                PriceSnapshot.flight_entry_id.in_([e.id for e in entries])
+            )
+        )
+        for s in snaps_q.scalars().all():
+            snapshots_by_entry.setdefault(s.flight_entry_id, []).append(s)
+    return build_comparison(entries, snapshots_by_entry).to_dict()
 
 
 @router.get("/{entry_id}", response_model=FlightEntryResponse)

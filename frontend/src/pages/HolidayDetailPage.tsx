@@ -5,6 +5,7 @@ import { flightsApi, type FlightInput } from '@/api/flights';
 import { holidaysApi } from '@/api/holidays';
 import { FlightEntryForm } from '@/components/FlightEntryForm';
 import { PriceHistoryChart } from '@/components/PriceHistoryChart';
+import { ShareLinkPanel } from '@/components/ShareLinkPanel';
 import type { FlightEntry } from '@/types/api';
 
 export function HolidayDetailPage() {
@@ -51,17 +52,27 @@ export function HolidayDetailPage() {
             Destinations: {holiday.destinations.map((d) => d.city).join(', ')}
           </p>
         )}
-        <button
-          className="btn danger"
-          onClick={async () => {
-            if (!confirm('Delete this holiday and all its flights?')) return;
-            await removeHoliday.mutateAsync();
-            window.location.href = '/holidays';
-          }}
-        >
-          Delete holiday
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <Link className="btn" to={`/holidays/${holidayId}/search`}>
+            Search flights
+          </Link>
+          <Link className="btn secondary" to={`/holidays/${holidayId}/compare`}>
+            Compare
+          </Link>
+          <button
+            className="btn danger"
+            onClick={async () => {
+              if (!confirm('Delete this holiday and all its flights?')) return;
+              await removeHoliday.mutateAsync();
+              window.location.href = '/holidays';
+            }}
+          >
+            Delete holiday
+          </button>
+        </div>
       </div>
+
+      <ShareLinkPanel holidayId={holidayId} />
 
       <FlightEntryForm
         onSubmit={(v) => createFlight.mutate(v)}

@@ -1,0 +1,67 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trip
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: trip_tracker
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trip -d trip_tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: prod
+      DEBUG: "false"
+      SECRET_KEY: ${SECRET_KEY:?set in .env}
+      DATABASE_URL: postgresql+asyncpg://trip:${POSTGRES_PASSWORD:-changeme}@db:5432/trip_tracker
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set in .env}
+      CORS_ORIGINS: ${PUBLIC_BASE_URL}
+      COOKIE_SECURE: "true"
+      JWT_TTL_MINUTES: "10080"
+      AMADEUS_CLIENT_ID: ${AMADEUS_CLIENT_ID:-}
+      AMADEUS_CLIENT_SECRET: ${AMADEUS_CLIENT_SECRET:-}
+      AMADEUS_HOSTNAME: ${AMADEUS_HOSTNAME:-test}
+      SERPAPI_KEY: ${SERPAPI_KEY:-}
+      DEFAULT_FLIGHT_PROVIDER: ${DEFAULT_FLIGHT_PROVIDER:-amadeus}
+      SCHEDULER_ENABLED: "true"
+      PRICE_REFRESH_INTERVAL_MINUTES: ${PRICE_REFRESH_INTERVAL_MINUTES:-360}
+      PRICE_CHANGE_THRESHOLD_PCT: ${PRICE_CHANGE_THRESHOLD_PCT:-5.0}
+      PRICE_CHANGE_THRESHOLD_ABS: ${PRICE_CHANGE_THRESHOLD_ABS:-25.0}
+      NOTIFIER_BACKEND: ${NOTIFIER_BACKEND:-console}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      RATE_LIMIT_PUBLIC_PER_MINUTE: ${RATE_LIMIT_PUBLIC_PER_MINUTE:-60}
+    # IMPORTANT: keep this at exactly 1 replica. APScheduler runs in-process.
+    deploy:
+      replicas: 1
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        # If api is on a different host, set this. Default is empty so the
+        # frontend uses the same origin as the page (proxied via nginx).
+        VITE_API_BASE_URL: ""
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  pg_data:
