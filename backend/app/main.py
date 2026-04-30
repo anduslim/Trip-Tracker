@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.jobs.scheduler import shutdown_scheduler, start_scheduler
+from app.middleware.csrf import CsrfMiddleware
 from app.middleware.rate_limit import PublicRateLimitMiddleware
 from app.routers import auth, dev, flights, health, holidays, notifications, public, search, share
 
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(PublicRateLimitMiddleware)
+    app.add_middleware(CsrfMiddleware)
 
     app.include_router(health.router, prefix="/api")
     app.include_router(auth.router, prefix="/api/auth", tags=["auth"])

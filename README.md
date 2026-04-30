@@ -4,7 +4,7 @@ Personal app to plan a holiday and track flight prices over time.
 
 ## Features
 
-- Email/password auth (JWT in HttpOnly cookie); each holiday is owner-scoped
+- Email/password auth (JWT in HttpOnly cookie) plus CSRF double-submit cookie protection on every mutating request; each holiday is owner-scoped
 - Create/edit/delete holidays with destinations, dates, currency, and per-holiday change thresholds
 - Add flight entries (manual or saved from a search) with source URL and price
 - Live flight search via a pluggable provider (Amadeus default, SerpApi/Google Flights when `SERPAPI_KEY` is set, FakeFlightProvider as a credentials-free fallback)
@@ -111,4 +111,3 @@ docker-compose.prod.yml
 
 - Playwright end-to-end suite (register → create holiday → save offer → chart → share link)
 - Celery + Redis migration when more than one `api` replica is needed
-- CSRF double-submit cookie (today: `SameSite=Lax` + same-origin proxy via nginx)

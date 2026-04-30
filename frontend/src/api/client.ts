@@ -1,4 +1,6 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '') as string;
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const CSRF_COOKIE = 'csrf_token';
 
 export class ApiError extends Error {
   status: number;
@@ -10,6 +12,18 @@ export class ApiError extends Error {
   }
 }
 
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const target = `${name}=`;
+  for (const part of document.cookie.split(';')) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(target)) {
+      return decodeURIComponent(trimmed.slice(target.length));
+    }
+  }
+  return null;
+}
+
 type RequestInitJson = Omit<RequestInit, 'body'> & { body?: unknown };
 
 export async function request<T>(path: string, init: RequestInitJson = {}): Promise<T> {
@@ -18,6 +32,11 @@ export async function request<T>(path: string, init: RequestInitJson = {}): Prom
   if (init.body !== undefined && !(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
     body = JSON.stringify(init.body);
+  }
+  const method = (init.method ?? 'GET').toUpperCase();
+  if (!SAFE_METHODS.has(method) && !headers.has('X-CSRF-Token')) {
+    const token = readCookie(CSRF_COOKIE);
+    if (token) headers.set('X-CSRF-Token', token);
   }
   const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
   const resp = await fetch(url, {

@@ -15,11 +15,21 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import get_settings
 
 
+# Module-level bucket store. Single dict so tests can reset between cases
+# without reaching into middleware internals.
+_BUCKETS: dict[str, deque[float]] = {}
+
+
+def reset_buckets() -> None:
+    """Clear all rate-limit state. Test-only."""
+    _BUCKETS.clear()
+
+
 class PublicRateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, *, prefix: str = "/api/public/"):
         super().__init__(app)
         self._prefix = prefix
-        self._buckets: dict[str, deque[float]] = {}
+        self._buckets = _BUCKETS
 
     async def dispatch(self, request: Request, call_next):
         if not request.url.path.startswith(self._prefix):

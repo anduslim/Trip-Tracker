@@ -48,6 +48,24 @@ async def db(session_factory, _patch_session_local) -> AsyncIterator[AsyncSessio
         yield session
 
 
+_SAFE = {"GET", "HEAD", "OPTIONS"}
+
+
+class _CsrfAwareClient(AsyncClient):
+    """Wrap AsyncClient so unsafe-method requests automatically include the
+    X-CSRF-Token header read from the current cookie jar. Mirrors what the
+    SPA does in production."""
+
+    async def request(self, method, url, *args, **kwargs):  # type: ignore[override]
+        if method.upper() not in _SAFE:
+            token = self.cookies.get("csrf_token")
+            if token:
+                headers = dict(kwargs.get("headers") or {})
+                headers.setdefault("X-CSRF-Token", token)
+                kwargs["headers"] = headers
+        return await super().request(method, url, *args, **kwargs)
+
+
 @pytest_asyncio.fixture
 async def client(session_factory, _patch_session_local) -> AsyncIterator[AsyncClient]:
     async def override_get_db() -> AsyncIterator[AsyncSession]:
@@ -56,9 +74,12 @@ async def client(session_factory, _patch_session_local) -> AsyncIterator[AsyncCl
 
     app.dependency_overrides[get_db] = override_get_db
     try:
-        async with AsyncClient(
+        async with _CsrfAwareClient(
             transport=ASGITransport(app=app), base_url="http://testserver"
         ) as c:
+            # Prime the CSRF cookie with a safe call so the first mutating
+            # request in a test has a token to send.
+            await c.get("/api/health")
             yield c
     finally:
         app.dependency_overrides.pop(get_db, None)

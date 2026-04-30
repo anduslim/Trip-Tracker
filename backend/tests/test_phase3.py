@@ -147,7 +147,9 @@ async def test_prune_old_snapshots_downsamples(db) -> None:
 
 async def test_public_rate_limit_returns_429(client: AsyncClient, monkeypatch) -> None:
     from app.config import get_settings
+    from app.middleware.rate_limit import reset_buckets
 
+    reset_buckets()
     get_settings.cache_clear()
     monkeypatch.setenv("RATE_LIMIT_PUBLIC_PER_MINUTE", "3")
     get_settings.cache_clear()
